@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI Logprobs 可视化工具</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 OpenAI Logprobs 可视化工具</h1>
+            <p class="subtitle">实时查看大模型下一个token的预测概率</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 左侧配置面板 -->
+            <div class="config-panel">
+                <div class="config-section">
+                    <h2>API 配置</h2>
+                    
+                    <div class="form-group">
+                        <label for="base-url">Base URL:</label>
+                        <input type="text" id="base-url" placeholder="https://api.openai.com/v1" value="">
+                        <small style="display: block; color: #666; margin-top: 5px; font-size: 12px;">
+                            例如: https://api.openai.com/v1, https://api.deepseek.com, https://ollama.com/v1
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="api-key">API Key:</label>
+                        <div class="password-input-wrapper">
+                            <input type="password" id="api-key" placeholder="输入API密钥" value="">
+                            <button type="button" class="password-toggle-btn" id="password-toggle-btn" title="显示/隐藏密码">
+                                <span id="password-toggle-icon">👁️</span>
+                            </button>
+                        </div>
+                        <small style="display: block; color: #666; margin-top: 5px; font-size: 12px;">
+                            你的API密钥将安全存储（仅在前端会话中）
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model">模型名称:</label>
+                        <input type="text" id="model" placeholder="输入模型名称" value="">
+                        <small style="display: block; color: #666; margin-top: 5px; font-size: 12px;">
+                            例如: gpt-3.5-turbo, gpt-4, deepseek-reasoner, gpt-oss:120b
+                        </small>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h2>对话配置</h2>
+                    
+                    <div class="form-group">
+                        <label for="system-prompt">System Prompt:</label>
+                        <textarea id="system-prompt" rows="3" placeholder="输入系统提示词..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="user-prompt">User Prompt:</label>
+                        <textarea id="user-prompt" rows="3" placeholder="输入用户提示词..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preset-assistant">预设 Assistant 内容 (可选):</label>
+                        <textarea id="preset-assistant" rows="2" placeholder="输入预设的assistant回复内容..."></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="temperature">Temperature:</label>
+                            <input type="number" id="temperature" value="1.0" min="0" max="2" step="0.1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="max-tokens">Max Tokens:</label>
+                            <input type="number" id="max-tokens" placeholder="留空则不设置" min="1" max="4096">
+                            <small style="display: block; color: #666; margin-top: 5px; font-size: 12px;">
+                                留空则不限制最大token数
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="top-logprobs">Top Logprobs:</label>
+                            <input type="number" id="top-logprobs" value="5" min="1" max="20">
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="send-btn" class="btn btn-primary">发送</button>
+                        <button id="clear-btn" class="btn btn-secondary">清空</button>
+                        <button id="stop-btn" class="btn btn-danger" disabled>停止</button>
+                    </div>
+                </div>
+
+                <!-- 预设对话管理 -->
+                <div class="config-section">
+                    <h2>预设对话管理</h2>
+                    
+                    <div class="preset-controls">
+                        <input type="text" id="preset-name" placeholder="预设名称">
+                        <button id="save-preset-btn" class="btn btn-small">保存预设</button>
+                    </div>
+
+                    <div class="preset-save-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="save-system-prompt" checked>
+                            <span>保存 System Prompt</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="save-user-prompt" checked>
+                            <span>保存 User Prompt</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="save-assistant-content" checked>
+                            <span>保存预设 Assistant 内容</span>
+                        </label>
+                    </div>
+
+                    <div class="preset-list" id="preset-list">
+                        <!-- 预设列表将动态加载 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧输出面板 -->
+            <div class="output-panel">
+                <div class="output-header">
+                    <h2>实时输出</h2>
+                    <div class="output-controls">
+                        <button id="toggle-display-mode-btn" class="btn btn-small" title="切换Token显示模式">
+                            <span id="toggle-display-mode-text">渲染</span>
+                        </button>
+                        <button id="copy-output-btn" class="btn btn-small">复制</button>
+                        <button id="clear-output-btn" class="btn btn-small">清空输出</button>
+                    </div>
+                </div>
+
+                <div class="output-content" id="output-content">
+                    <div class="placeholder">等待输入...</div>
+                </div>
+
+                <!-- 思考过程显示区域 -->
+                <div class="reasoning-section" id="reasoning-section">
+                    <div class="reasoning-header" onclick="toggleReasoningSection()">
+                        <span>💭 模型思考过程</span>
+                        <span class="reasoning-toggle" id="reasoning-toggle">▼</span>
+                    </div>
+                    <div class="reasoning-content" id="reasoning-content" style="display: none;">
+                        <div class="reasoning-controls">
+                            <button id="clear-reasoning-btn" class="btn btn-small">清空思考过程</button>
+                            <button id="copy-reasoning-btn" class="btn btn-small">复制思考过程</button>
+                        </div>
+                        <div class="reasoning-output" id="reasoning-output">
+                            <div class="reasoning-placeholder">等待模型思考...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SSE调试区域 -->
+                <div class="debug-section">
+                    <div class="debug-header" onclick="toggleDebugSection()">
+                        <span>🔍 SSE响应数据包调试</span>
+                        <span class="debug-toggle" id="debug-toggle">▼</span>
+                    </div>
+                    <div class="debug-content" id="debug-content" style="display: none;">
+                        <div class="debug-controls">
+                            <button id="clear-debug-btn" class="btn btn-small">清空调试信息</button>
+                            <button id="copy-debug-btn" class="btn btn-small">复制调试信息</button>
+                        </div>
+                        <pre id="debug-output" class="debug-output"></pre>
+                    </div>
+                </div>
+
+                <!-- Logprobs 悬浮提示 -->
+                <div class="tooltip" id="logprobs-tooltip">
+                    <div class="tooltip-header">下一个 Token 预测:</div>
+                    <div class="tooltip-content" id="tooltip-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/app.js"></script>
+</body>
+</html>
+
